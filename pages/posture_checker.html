@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Posture Detector</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+      background-color: black;
+      color: white;
+      text-align: center;
+    }
+
+    video, canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+
+    #feedback {
+      position: absolute;
+      bottom: 30px;
+      width: 100%;
+      font-size: 2em;
+      font-weight: bold;
+      text-shadow: 2px 2px 10px black;
+    }
+  </style>
+</head>
+<body>
+  <video id="input_video" width="1280" height="720" autoplay muted></video>
+  <canvas id="output_canvas" width="1280" height="720"></canvas>
+  <div id="feedback">Initializing...</div>
+
+  <!-- Load MediaPipe Pose -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+
+  <script>
+    const videoElement = document.getElementById('input_video');
+    const canvasElement = document.getElementById('output_canvas');
+    const canvasCtx = canvasElement.getContext('2d');
+    const feedbackElement = document.getElementById('feedback');
+
+    function getAngle(A, B, C) {
+      const AB = [A.x - B.x, A.y - B.y];
+      const CB = [C.x - B.x, C.y - B.y];
+      const dot = AB[0]*CB[0] + AB[1]*CB[1];
+      const magAB = Math.sqrt(AB[0]**2 + AB[1]**2);
+      const magCB = Math.sqrt(CB[0]**2 + CB[1]**2);
+      const angle = Math.acos(dot / (magAB * magCB));
+      return angle * (180 / Math.PI);
+    }
+
+    function checkPosture(landmarks) {
+    const leftShoulder = landmarks[11];
+    const rightShoulder = landmarks[12];
+    const leftHip = landmarks[23];
+    const rightHip = landmarks[24];
+    const leftEar = landmarks[7];
+    const rightEar = landmarks[8];
+
+    // Check if shoulders are aligned horizontally
+    const shoulderDiff = Math.abs(leftShoulder.y - rightShoulder.y);
+
+    // Check if back is straight (average x of shoulder and hip should be aligned)
+    const avgShoulderX = (leftShoulder.x + rightShoulder.x) / 2;
+    const avgHipX = (leftHip.x + rightHip.x) / 2;
+    const spineAlignment = Math.abs(avgShoulderX - avgHipX);
+
+    // Check if ear is aligned with shoulder (no forward head)
+    const headAlignment = Math.abs(leftEar.x - leftShoulder.x) < 0.1 &&
+                          Math.abs(rightEar.x - rightShoulder.x) < 0.1;
+
+    if (shoulderDiff < 0.05 && spineAlignment < 0.05 && headAlignment) {
+        document.getElementById("postureStatus").innerText = "✅ Posture Correct!";
+    } else {
+        document.getElementById("postureStatus").innerText = "⚠️ Please correct your posture!";
+    }
+}
+
+    function onResults(results) {
+      canvasCtx.save();
+      canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+      canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+      if (results.poseLandmarks) {
+        drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#00FF00', lineWidth: 3});
+        drawLandmarks(canvasCtx, results.poseLandmarks, {color: '#FF0000', lineWidth: 2});
+
+        const lm = results.poseLandmarks;
+        const leftShoulder = lm[11];
+        const leftHip = lm[23];
+        const leftKnee = lm[25];
+
+        const angle = getAngle(leftShoulder, leftHip, leftKnee);
+
+        if (angle > 165 && angle < 195) {
+          feedbackElement.innerText = "✅ Posture Correct!";
+          feedbackElement.style.color = "lightgreen";
+        } else {
+          feedbackElement.innerText = "⚠️ Please correct your posture!";
+          feedbackElement.style.color = "red";
+        }
+      }
+
+      canvasCtx.restore();
+    }
+
+    const pose = new Pose({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+    });
+
+    pose.setOptions({
+      modelComplexity: 1,
+      smoothLandmarks: true,
+      enableSegmentation: false,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+
+    pose.onResults(onResults);
+
+    const camera = new Camera(videoElement, {
+      onFrame: async () => {
+        await pose.send({image: videoElement});
+      },
+      width: 1280,
+      height: 720
+    });
+
+    camera.start();
+  </script>
+</body>
+</html>

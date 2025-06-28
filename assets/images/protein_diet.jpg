@@ -1,0 +1,1 @@
+<img src="../assets/images/<?= $selectedDiet['https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSFSqyWWWbCa-JPGrrSKJMEx9VlTenwxL1nO2T8IHIPuIamNAhdY7dt1r-3czmB7Rv1xIQ&usqp=CAU'] ?>" alt="Diet Plan">

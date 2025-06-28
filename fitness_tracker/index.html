@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AI Fitness Tracker</title>
+  <style>
+    body {
+      margin: 0;
+      background: black;
+      color: white;
+      font-family: Arial, sans-serif;
+      text-align: center;
+    }
+    canvas, video {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      top: 60px;
+    }
+    #calories {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 24px;
+    }
+  </style>
+</head>
+<body>
+  <h1>AI Pose-Based Fitness Tracker</h1>
+  <div id="calories">Calories Burned: 0</div>
+  <video id="video" width="640" height="480" autoplay muted playsinline></video>
+  <canvas id="canvas" width="640" height="480"></canvas>
+
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3/drawing_utils.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const caloriesEl = document.getElementById('calories');
+    let calorieCount = 0;
+
+    function onResults(results) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (results.poseLandmarks) {
+        drawConnectors(ctx, results.poseLandmarks, POSE_CONNECTIONS,
+          { color: '#00FF00', lineWidth: 4 });
+        drawLandmarks(ctx, results.poseLandmarks,
+          { color: '#FF0000', lineWidth: 2 });
+
+        // Naive calorie logic (later replace with ML model)
+        calorieCount += 0.03;
+        caloriesEl.innerText = "Calories Burned: " + calorieCount.toFixed(2);
+      }
+    }
+
+    const pose = new Pose({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+    });
+
+    pose.setOptions({
+      modelComplexity: 1,
+      smoothLandmarks: true,
+      enableSegmentation: false,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+
+    pose.onResults(onResults);
+
+    const camera = new Camera(video, {
+      onFrame: async () => {
+        await pose.send({ image: video });
+      },
+      width: 640,
+      height: 480
+    });
+    camera.start();
+  </script>
+</body>
+</html>
